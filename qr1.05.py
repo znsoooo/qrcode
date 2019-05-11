@@ -2,10 +2,11 @@
 
 # Name: QR-Code Helper
 # Version: 1.05
-# Author: znsoooo.com/qrcode
+# Author: github.com/znsoooo/qrcode
 
 # Usage
 # A way to easily convert text into QR-Code without network.
+# An easy way to convert long text into a series of QR-Codes, so the text can be transferred without network.
 # Load clipboard or input text to convert QR-Code.
 
 # Hotkey
