@@ -2,10 +2,11 @@
 
 # Name: QR-Code Lite Helper
 # Version: 0.01
-# Author: znsoooo.com/qrcode
+# Author: github.com/znsoooo/qrcode
 
 # Usage
 # A way to easily convert text into QR-Code without network.
+# An easy way to convert long text into a series of QR-Codes, so the text can be transferred without network.
 # Load text from clipboard and convert to QR-Code.
 # Restart to reload text in clipboard.
 
