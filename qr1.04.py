@@ -1,19 +1,32 @@
 # -*- coding: utf-8 -*-
 
-# Name: QR-Code Helper
-# Version: 1.05
-# Author: github.com/znsoooo/qrcode
+# usage: znsoooo.com/qrcode
 
-# Usage
-# A way to easily convert text into QR-Code without network.
-# An easy way to convert long text into a series of QR-Codes, so the text can be transferred without network.
-# Load clipboard or input text to convert QR-Code.
+# 20180510
+# 支持双击打开通过py34运行
+# 支持启动置入剪切板内容
+# 当剪切板为空或非文本时的default
 
-# Hotkey
-# Submit:   Enter, Ctrl, Backspace
-# PageUp:   F1, Right mouse
-# PageDown: F2, Left mouse
-# Close:    Esc, Middle mouse
+# 20190507
+# 修改为类
+# 基于Python3的编程
+# 键盘快捷键(Esc/Left/Right)
+# 文本变化后即时改变二维码
+# 文本框界面宽度适配
+# 其他优化
+
+# 20190509
+# 取消默认值
+# 当二维码内容为空时隐藏二维码
+# 启动时窗口所在位置设定
+# 窗口大小变化前后窗口中心保持不变(但可以拖动)
+# 键盘响应热键: Esc/F1/F2/Ctrl/Enter/Back
+
+# 20190510
+# 响应鼠标操作
+# 翻页时所在光标移动到指定位置
+# 修改横向布局
+# 窗口总大小保持不变(Text弹性)
 
 try:
     import Tkinter as tkinter
@@ -26,19 +39,18 @@ qrlen = 1000
 print('=============')
 
 def qrmake(qrstr):
-    img = qrcode.make(qrstr, version=20, box_size=2, border=2)
+    qrlog = qrstr.replace('\r','\\r').replace('\n','\\n').replace('\t','\\t')
+    if len(qrlog) < 40: print(qrlog)
+    else:
+        print(qrlog[:10] + '...\n...\n...' + qrlog[-10:])
+    qr = qrcode.QRCode(version=20, box_size=2, border=2)
+    qr.add_data(qrstr)
+    img = qr.make_image()
     bm = ImageTk.PhotoImage(image=img)
     return bm
 
-def qrlog(qrstr, page, total):
-    qrlog = qrstr.replace('\r','\\r').replace('\n','\\n').replace('\t','\\t')
-    if len(qrlog) < 40:
-        print(qrlog)
-    else:
-        print(qrlog[:10] + '...\n...\n...' + qrlog[-10:])
-    print('-------------\nLength: %s\nPage: %s/%s\n============='%(len(qrstr),page,total))
-
 def paragraph(text, lenth):
+    total = 0
     sentence = ''
     res = []
     for word in text:
@@ -91,8 +103,6 @@ class myPanel(tkinter.Tk):
             evt.keysym = 'F2'
         elif evt.num == 3:
             evt.keysym = 'F1'
-        elif evt.num == 2:
-            evt.keysym = 'Escape'
         if evt.keysym == 'Escape':
             self.destroy()
         else:
@@ -103,14 +113,13 @@ class myPanel(tkinter.Tk):
                     self.cnt = min(self.cnt+1,len(self.slices)-1)
                 text_pre = ''.join(self.slices[:self.cnt])
                 self.ent.see(self.setCursor(text_pre))
-                self.setQrcode(self.slices[self.cnt])
             elif evt.keysym in ['Control_L', 'Return', 'BackSpace']:
                 ss2 = self.ent.get('0.0', 'end')[:-1]
                 if self.ss != ss2:
                     self.ss = ss2
                     self.cnt = 0
                     self.slices = paragraph(self.ss, qrlen)
-                self.setQrcode(self.slices[self.cnt])
+            self.setQrcode(self.slices[self.cnt])
 
     def setQrcode(self, string):
         if self.string != string:
@@ -121,7 +130,7 @@ class myPanel(tkinter.Tk):
                 bm.append(qrmake(string))
                 self.qrc.config(image=bm[-1])
                 self.qrc.pack()
-        qrlog(string, self.cnt+1, len(self.slices))
+            print('-------------\nPage: %s/%s\n============='%(self.cnt+1,len(self.slices)))
 
     def setCursor(self, text):
         index = len(text)
