@@ -4,9 +4,26 @@
 - 打开文件时选区设定不对
 
 
-# Usage:
-- github.com/znsoooo/qrcode
+# QR-Code Helper
+- Version: 1.07
+- Platform: >= 2.7 or >= 3.4(suggestion)
+- Author: github.com/znsoooo/qrcode
 
+## Usage
+- A way to easily convert text into QR-Code without network.
+- An easy way to convert long text into a series of QR-Codes, so the text can be transferred without network.
+- Load clipboard or input text to convert QR-Code.
+
+## Hotkey
+- Submit: Enter/Backspace/Ctrl, Mouse up
+- Open: F1, Mouse double right
+- PgUp: F2, Mouse single right
+- PgDn: F3, Mouse single left
+- Goto: F4, Mouse double left
+- Exit: ESC, Mouse middle
+
+
+# History
 
 ## qr1.07
 
