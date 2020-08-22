@@ -1,9 +1,3 @@
-# TODO
-- py2的拖拽
-- py2和py3打开文件时的默认解码格式不一样
-- 打开文件时选区设定不对
-
-
 # QR-Code Helper
 - Version: 1.07
 - Platform: >= 2.7 or >= 3.4(suggestion)
@@ -21,6 +15,12 @@
 - PgDn: F3, Mouse single left
 - Goto: F4, Mouse double left
 - Exit: ESC, Mouse middle
+
+
+# TODO
+- py2的拖拽
+- py2和py3打开文件时的默认解码格式不一样
+- 打开文件时选区设定不对
 
 
 # History
