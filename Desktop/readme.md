@@ -62,7 +62,7 @@
 2   |qr_desktop_xxx.py|主程序文件
 3   |icon.png         |PNG格式图标文件
 4   |icon.ico         |ICO格式图标文件
-5   |StratUp.lnk      |系统启动文件夹快捷方式
+5   |stratup.lnk      |系统启动文件夹快捷方式
 
 
 ## How to Use?
