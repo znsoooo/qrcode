@@ -2,7 +2,7 @@
 
 # Name:    QR Desktop
 # Version: 1.0.0.0
-# Date:    2021-08-20
+# Date:    2021-08-22
 # Author:  Lishixian
 # Email:   11313213@qq.com
 # Github:  github.com/znsoooo/qrcode/tree/master/Desktop
@@ -469,7 +469,7 @@ class MyFrame(wx.Frame):
         self.timer.th.cancel()
         self.monitor.stop()
         self.icon.Destroy() # only `RemoveIcon` will still run in mainloop.
-        self.Destroy()
+        wx.CallAfter(self.Destroy) # window will not close while no event occurred. (click status bar while window not on focus).
 
 
 if __name__ == '__main__':
