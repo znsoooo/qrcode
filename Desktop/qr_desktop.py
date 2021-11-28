@@ -36,6 +36,16 @@
 # 显示状态带参数启动
 # 代码优化
 
+# Ver 1.0.1
+# MyConfig调整
+# 右键打开配置
+# 汇总接收文件夹
+# 快速部署快速启动
+# 修复剪切板获取异常弹出报错
+
+# TODO
+# 运行一段时间后键盘脱钩
+
 import os
 import sys
 import time
@@ -50,10 +60,22 @@ import wx
 import wx.adv
 import pynput
 import qrcode
+import winshell
+import pyperclip
 
 __title__ = 'QR Desktop'
-__ver__   = 'Ver 1.0.0'
+__ver__   = 'Ver 1.0.1'
 __help__  = 'https://github.com/znsoooo/qrcode/tree/master/Desktop'
+
+
+def Install(make=True):
+    target = sys.argv[0]
+    name = os.path.splitext(os.path.basename(target))[0]
+    path = os.path.join(winshell.startup(), name) + '.lnk'
+    if make:
+        winshell.CreateShortcut(path, target, 'off', os.path.dirname(target))
+    elif os.path.exists(path):
+        os.remove(path)
 
 
 def QrMake(qrstr):
@@ -114,14 +136,16 @@ def DecodeFile(data):
         text = ''.join(data4)
         file, content = text.split('|', 1)
         content2 = zlib.decompress(base64.b64decode(content.replace('_', '/')))
-        root, ext = os.path.splitext(file)
+        file2 = os.path.join('recv', file)
+        root, ext = os.path.splitext(file2)
         cnt = 1
-        while os.path.exists(file):
-            file = '%s_%d%s' % (root, cnt, ext)
+        while os.path.exists(file2):
             cnt += 1
-        with open(file, 'wb') as f:
+            file2 = '%s-%d%s' % (root, cnt, ext)
+        os.makedirs('recv', exist_ok=True)
+        with open(file2, 'wb') as f:
             f.write(content2)
-        cmd = 'explorer /select, "%s"' % os.path.abspath(file)
+        cmd = 'explorer /select, "%s"' % os.path.abspath(file2)
         subprocess.Popen(cmd, -1, None, -1, -1, -1) # `os.popen` cant use in `pyinstaller -F -w` mode.
     except Exception as e:
         return 'DecodeError: %s' % e
@@ -145,24 +169,25 @@ def SplitAverage(text, length): # split average
 
 
 class MyConfigParser(configparser.ConfigParser):
-    def __init__(self, path):
+    def __init__(self, path, section):
         configparser.ConfigParser.__init__(self)
         self.path = path
+        self.s = section
         self.read(path)
-        if not self.has_section(__title__):
-            self.add_section(__title__)
+        if not self.has_section(section):
+            self.add_section(section)
 
     def getkey(self, key, default=None):
         self.read(self.path)
-        if self.has_option(__title__, key):
-            return self.get(__title__, key)
+        if self.has_option(self.s, key):
+            return self.get(self.s, key)
         elif default:
-            self.set(__title__, key, str(default))
+            self.set(self.s, key, str(default))
             self.write(open(self.path, 'w'))
             return default
 
     def setkey(self, key, value):
-        self.set(__title__, key, str(value))
+        self.set(self.s, key, str(value))
         self.write(open(self.path, 'w'))
 
 
@@ -171,32 +196,11 @@ class ClipboardHistroy:
         self.last = None
         self.data = []
 
-    def get(self):
-        try:
-            do = wx.TextDataObject()
-            if wx.TheClipboard.Open():
-                ret = wx.TheClipboard.GetData(do)
-                wx.TheClipboard.Close()
-                if ret:
-                    return do.GetText()
-        except Exception as e:
-            print('GetError:', e)
-
-    def set(self, text):
-        try:
-            do = wx.TextDataObject()
-            do.SetText(text)
-            if wx.TheClipboard.Open():
-                wx.TheClipboard.SetData(do)
-                wx.TheClipboard.Close()
-        except Exception as e:
-            print('SetError:', e)
-
     def find(self, id):
         text = self.data.pop(id)
         self.data.insert(0, text)
-        self.set(text)
-        self.last = self.get() # restore status prevent text change after set/get (when data read from file, '\r\n' change to '\n').
+        pyperclip.copy(text)
+        self.last = text
         return text
 
     def add(self, text):
@@ -205,7 +209,7 @@ class ClipboardHistroy:
         self.data.insert(0, text)
 
     def latest(self):
-        text = self.get()
+        text = pyperclip.paste()
         if text and text != self.last:
             self.last = text
             self.add(text)
@@ -301,12 +305,12 @@ class MyTaskBarIcon(wx.adv.TaskBarIcon):
 
     def SetMyIcon(self):
         spec = '\nRight Click to Close' or '\nLeft Click to Switch, Right Click to Close.'
-        self.SetIcon(self.icon, '%s (%s)'%(__title__, ['Off', 'On', 'Auto'][self.parent.always]) + spec)
+        self.SetIcon(self.icon, '%s (%s)' % (__title__, ['Off', 'On', 'Auto'][self.parent.always]) + spec)
 
 
 class MyFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, '%s - %s'%(__title__, __ver__), style=wx.STAY_ON_TOP) # | wx.BORDER_NONE
+        wx.Frame.__init__(self, None, -1, '%s - %s' % (__title__, __ver__), style=wx.STAY_ON_TOP) # | wx.BORDER_NONE
 
         self.always = INIT_ALWAYS
         self.encode = False
@@ -353,6 +357,7 @@ class MyFrame(wx.Frame):
     def SetQrCode(self, text=None, init=None, encode=False):
         text = text or self.history.latest() or init
         if text:
+            self.text = text
             self.encode = encode
             ret = DecodeFile(text) # format error or decode success will return `None`.
             text = ret or text
@@ -400,19 +405,26 @@ class MyFrame(wx.Frame):
 
     def OnPopup(self, evt):
         menu = wx.Menu()
-        menu.Append(0, 'Clear History')
+        menu.Append(0, 'Open Config')
+        menu.AppendSeparator()
+        menu.Append(1, 'Clear History')
         for i, text in enumerate(self.history.data[1:]):
             menu.AppendSeparator()
-            menu.Append(i+1, 'Len %3d: %s'%(len(text), text.__repr__()))
+            menu.Append(i + 2, 'Len %3d: %s' % (len(text), text.__repr__()))
         menu.Bind(wx.EVT_MENU, self.OnMenu)
         self.PopupMenu(menu)
 
     def OnMenu(self, evt):
         id = evt.GetId()
-        if not id:
-            self.history.data = self.history.data[:1] # clear data except current.
+        if id == 0:
+            subprocess.Popen('notepad config.ini', -1, None, -1, -1, -1).wait() # block process
+            self.SetQrCode(text=self.text, encode=self.encode)
+            self.timer.wait(self.timeout) # delay timer
             return
-        text = self.history.find(id)
+        elif id == 1:
+            self.history.data = self.history.data[:1]  # clear data except current.
+            return
+        text = self.history.find(id - 1)
         self.SetQrCode(text=text)
 
     def Show(self, show=True):
@@ -473,13 +485,16 @@ class MyFrame(wx.Frame):
 
 
 if __name__ == '__main__':
-    INI = MyConfigParser('config.ini')
+    INI = MyConfigParser('config.ini', __title__)
     IMG_ICON = 'icon.ico'
     if hasattr(sys, '_MEIPASS'):
         IMG_ICON = os.path.join(sys._MEIPASS, IMG_ICON)
 
-    arg = (sys.argv + [''])[1] # Good!
-    INIT_ALWAYS = {'on': 1, 'off': 0, 'auto': -1}.get(arg, -1)
+    INIT_ALWAYS = -1 # default
+    if len(sys.argv) == 1:
+        Install()
+    else:
+        INIT_ALWAYS = {'on': 1, 'off': 0}.get(sys.argv[1], -1)
 
     app = wx.App()
     locale = wx.Locale(wx.LANGUAGE_ENGLISH) # sometimes PNG read error.

@@ -1,0 +1,7 @@
+*.pyc
+*/build/*
+*/dist/*
+
+# Desktop
+Desktop/config.ini
+Desktop/test*
