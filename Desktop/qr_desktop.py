@@ -1,8 +1,5 @@
-# 20210712 build
+# QR Desktop
 
-# Name:    QR Desktop
-# Version: 1.0.0.0
-# Date:    2021-08-22
 # Author:  Lishixian
 # Email:   11313213@qq.com
 # Github:  github.com/znsoooo/qrcode/tree/master/Desktop
@@ -43,6 +40,10 @@
 # 快速部署快速启动
 # 修复剪切板获取异常弹出报错
 
+# Ver 1.0.2
+# 记录运行错误日志
+# 捕获异常重启和退出
+
 # TODO
 # 运行一段时间后键盘脱钩
 
@@ -51,8 +52,9 @@ import sys
 import time
 import zlib
 import base64
-import configparser
+import traceback
 import subprocess
+import configparser
 from threading import Timer
 from threading import Thread
 
@@ -64,8 +66,15 @@ import winshell
 import pyperclip
 
 __title__ = 'QR Desktop'
-__ver__   = 'Ver 1.0.1'
+__ver__   = 'Ver 1.0.2a1'
 __help__  = 'https://github.com/znsoooo/qrcode/tree/master/Desktop'
+
+
+def Log():
+    error = traceback.format_exc()
+    tt = time.strftime('[%Y-%m-%d %H:%M:%S] ')
+    with open('log.txt', 'a', encoding='u8') as f:
+        f.write(tt + error + '\n')
 
 
 def Install(make=True):
@@ -191,7 +200,7 @@ class MyConfigParser(configparser.ConfigParser):
         self.write(open(self.path, 'w'))
 
 
-class ClipboardHistroy:
+class ClipboardHistory:
     def __init__(self):
         self.last = None
         self.data = []
@@ -307,9 +316,13 @@ class MyTaskBarIcon(wx.adv.TaskBarIcon):
         spec = '\nRight Click to Close' or '\nLeft Click to Switch, Right Click to Close.'
         self.SetIcon(self.icon, '%s (%s)' % (__title__, ['Off', 'On', 'Auto'][self.parent.always]) + spec)
 
+    def SetMyIconError(self):
+        self.SetIcon(self.icon, 'Left Click to Restart')
+        self.Bind(wx.adv.EVT_TASKBAR_LEFT_UP, self.parent.__init__)
+
 
 class MyFrame(wx.Frame):
-    def __init__(self):
+    def __init__(self, evt=None): # `evt` for restart command
         wx.Frame.__init__(self, None, -1, '%s - %s' % (__title__, __ver__), style=wx.STAY_ON_TOP) # | wx.BORDER_NONE
 
         self.always = INIT_ALWAYS
@@ -320,7 +333,14 @@ class MyFrame(wx.Frame):
         self.icon = MyTaskBarIcon(self)
         self.bmp  = wx.StaticBitmap(self)
 
-        self.history = ClipboardHistroy()
+        try:
+            self.Init()
+        except:
+            Log()
+            self.icon.SetMyIconError()
+
+    def Init(self):
+        self.history = ClipboardHistory()
         self.timer   = MyLastTimer(self.Hide)
         self.monitor = Monitor(self.MonitorHook)
         Mover(self, self.bmp)
@@ -478,8 +498,11 @@ class MyFrame(wx.Frame):
         self.enter = evt.Entering()
 
     def OnClose(self, evt):
-        self.timer.th.cancel()
-        self.monitor.stop()
+        try:
+            self.timer.th.cancel()
+            self.monitor.stop()
+        except:
+            Log()
         self.icon.Destroy() # only `RemoveIcon` will still run in mainloop.
         wx.CallAfter(self.Destroy) # window will not close while no event occurred. (click status bar while window not on focus).
 
