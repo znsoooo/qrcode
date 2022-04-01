@@ -44,8 +44,12 @@
 # 记录运行错误日志
 # 捕获异常重启和退出
 
-# TODO
-# 运行一段时间后键盘脱钩
+# Ver 1.0.3
+# 滚轮翻页
+# UI交互时重置监视器并主动获取剪切板
+# 获取剪切板异常跳过
+# 捕捉异常记录日志
+# 显示版本号
 
 import os
 import sys
@@ -66,15 +70,8 @@ import winshell
 import pyperclip
 
 __title__ = 'QR Desktop'
-__ver__   = 'Ver 1.0.2a1'
+__ver__   = 'v1.0.3a'
 __help__  = 'https://github.com/znsoooo/qrcode/tree/master/Desktop'
-
-
-def Log():
-    error = traceback.format_exc()
-    tt = time.strftime('[%Y-%m-%d %H:%M:%S] ')
-    with open('log.txt', 'a', encoding='u8') as f:
-        f.write(tt + error + '\n')
 
 
 def Install(make=True):
@@ -218,7 +215,10 @@ class ClipboardHistory:
         self.data.insert(0, text)
 
     def latest(self):
-        text = pyperclip.paste()
+        try:
+            text = pyperclip.paste()
+        except pyperclip.PyperclipException: # sometimes permission denied
+            text = ''
         if text and text != self.last:
             self.last = text
             self.add(text)
@@ -242,8 +242,7 @@ class MyLastTimer: # Good!
 class Monitor:
     def __init__(self, func):
         self.func = func
-        Thread(target=self.mouser).start()
-        Thread(target=self.keyboarder).start()
+        self.start()
 
     def hook(self, *typ_names):
         for name in typ_names:
@@ -256,6 +255,10 @@ class Monitor:
     def keyboarder(self):
         with pynput.keyboard.Listener(*self.hook('press', 'release')) as self.kl:
             self.kl.join()
+
+    def start(self):
+        Thread(target=self.mouser).start()
+        Thread(target=self.keyboarder).start()
 
     def stop(self):
         pynput.keyboard.Listener.stop(self.kl)
@@ -313,16 +316,12 @@ class MyTaskBarIcon(wx.adv.TaskBarIcon):
         self.Bind(wx.adv.EVT_TASKBAR_RIGHT_UP, parent.OnClose)
 
     def SetMyIcon(self):
-        spec = '\nRight Click to Close' or '\nLeft Click to Switch, Right Click to Close.'
-        self.SetIcon(self.icon, '%s (%s)' % (__title__, ['Off', 'On', 'Auto'][self.parent.always]) + spec)
-
-    def SetMyIconError(self):
-        self.SetIcon(self.icon, 'Left Click to Restart')
-        self.Bind(wx.adv.EVT_TASKBAR_LEFT_UP, self.parent.__init__)
+        spec = 'Right Click to Close' or 'Left Click to Switch, Right Click to Close.'
+        self.SetIcon(self.icon, '%s %s (%s)' % (__title__, __ver__, ['Off', 'On', 'Auto'][self.parent.always]))
 
 
 class MyFrame(wx.Frame):
-    def __init__(self, evt=None): # `evt` for restart command
+    def __init__(self):
         wx.Frame.__init__(self, None, -1, '%s - %s' % (__title__, __ver__), style=wx.STAY_ON_TOP) # | wx.BORDER_NONE
 
         self.always = INIT_ALWAYS
@@ -333,35 +332,30 @@ class MyFrame(wx.Frame):
         self.icon = MyTaskBarIcon(self)
         self.bmp  = wx.StaticBitmap(self)
 
-        try:
-            self.Init()
-        except:
-            Log()
-            self.icon.SetMyIconError()
-
-    def Init(self):
         self.history = ClipboardHistory()
         self.timer   = MyLastTimer(self.Hide)
         self.monitor = Monitor(self.MonitorHook)
         Mover(self, self.bmp)
         self.bmp.SetDropTarget(MyFileDropTarget(self.OnOpenFile))
 
-        self.LoadLocation() # before `SetQrCode`
-        self.SetQrCode(init=__help__) # clipboard maybe unavailable first time.
-        self.timer.wait(self.timeout) # timer for run at first time.
-
         self.Binding(self.bmp)
+
+        with catch:
+            self.LoadLocation()  # before `SetQrCode`
+            self.SetQrCode(init=__help__) # clipboard maybe unavailable first time.
+            self.timer.wait(self.timeout) # timer for run at first time.
 
     def Binding(self, widget):
         widget.Bind(wx.EVT_ENTER_WINDOW, self.OnEnter)
         widget.Bind(wx.EVT_LEAVE_WINDOW, self.OnEnter)
-        widget.Bind(wx.EVT_MIDDLE_UP, self.Hide)
-        widget.Bind(wx.EVT_RIGHT_UP,  self.OnPopup)
-        self.Bind(wx.EVT_CLOSE,       self.Hide) # maybe call by `Alt+F4`
+        widget.Bind(wx.EVT_MIDDLE_DOWN,  self.Hide)
+        widget.Bind(wx.EVT_RIGHT_UP,     self.OnPopup)
+        self.Bind(wx.EVT_MOUSEWHEEL,     self.OnMouseWheel)
+        self.Bind(wx.EVT_CLOSE,          self.Hide) # maybe call by `Alt+F4`
 
     def MonitorHook(self, typ, *args):
         self.timer.wait(self.timeout)
-        if typ in ['release', 'click']:
+        if typ in ('release', 'click'):
             self.SetQrCode()
             if hasattr(args[0], 'name'): # global hotkey
                 self.HotKey(args[0].name)
@@ -403,6 +397,13 @@ class MyFrame(wx.Frame):
         self.bmp.SetToolTip(header + text)
         self.SetSizeCenter(self.bmp.GetSize())
 
+    def Reset(self):
+        if self.IsShown():
+            self.SetQrCode()
+        with catch:
+            self.monitor.stop()
+            self.monitor.start()
+
     def Flip(self, n):
         page = self.page + n
         while 0 <= page < len(self.texts): # avoid maximum recursion depth exceeded.
@@ -439,13 +440,13 @@ class MyFrame(wx.Frame):
         if id == 0:
             subprocess.Popen('notepad config.ini', -1, None, -1, -1, -1).wait() # block process
             self.SetQrCode(text=self.text, encode=self.encode)
+            self.Reset()
             self.timer.wait(self.timeout) # delay timer
-            return
         elif id == 1:
             self.history.data = self.history.data[:1]  # clear data except current.
-            return
-        text = self.history.find(id - 1)
-        self.SetQrCode(text=text)
+        else:
+            text = self.history.find(id - 1)
+            self.SetQrCode(text=text)
 
     def Show(self, show=True):
         self.timeout = int(INI.getkey('timeout', '6'))
@@ -468,6 +469,7 @@ class MyFrame(wx.Frame):
             else:
                 self.always = -1
                 self.Show(not self.IsShown())
+            self.Reset()
             self.icon.SetMyIcon()
         else: # press key
             self.Show(not self.IsShown())
@@ -497,14 +499,33 @@ class MyFrame(wx.Frame):
     def OnEnter(self, evt):
         self.enter = evt.Entering()
 
+    def OnMouseWheel(self, evt):
+        n = 1 if evt.GetWheelRotation() < 0 else -1
+        self.Flip(n)
+
     def OnClose(self, evt):
-        try:
+        with catch:
             self.timer.th.cancel()
             self.monitor.stop()
-        except:
-            Log()
         self.icon.Destroy() # only `RemoveIcon` will still run in mainloop.
         wx.CallAfter(self.Destroy) # window will not close while no event occurred. (click status bar while window not on focus).
+
+
+class Catch:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        if any(args):
+            traceback.print_exc()
+            error = traceback.format_exc()
+            tt = time.strftime('[%Y-%m-%d %H:%M:%S] ')
+            with open('log.txt', 'a', encoding='u8') as f:
+                f.write(tt + error + '\n')
+        return True
+
+
+catch = Catch()
 
 
 if __name__ == '__main__':
