@@ -421,13 +421,6 @@ class MyFrame(wx.Frame):
         self.bmp.SetBitmap(wx.Bitmap(img_wx))
         self.bmp.SetToolTip(header + text)
 
-    def Reset(self):
-        if self.IsShown():
-            self.SetQrCode()
-        with catch:
-            self.monitor.stop()
-            self.monitor.start()
-
     def Flip(self, n):
         page = self.page + n
         while 0 <= page < len(self.texts): # avoid maximum recursion depth exceeded.
@@ -441,6 +434,39 @@ class MyFrame(wx.Frame):
                 page = self.page + n
             else:
                 break
+
+    def Reset(self):
+        if self.IsShown():
+            self.SetQrCode()
+        with catch:
+            self.monitor.stop()
+            self.monitor.start()
+
+    def Show(self, show=True):
+        self.timeout = int(INI.getkey('timeout', '6'))
+        if self.always == self.IsShown():
+            return
+        bmp = self.bmp
+        tip = bmp.GetToolTipText()
+        bmp.SetToolTip('') # prevent remain shadow after hide frame.
+        super().Show(show)
+        bmp.SetToolTip(tip) # restore tip text.
+
+    def Hide(self, evt=None):
+        if evt or not self.enter: # call by `Alt+F4`
+            self.Show(False)
+
+    def Swap(self, evt=None):
+        if evt: # click icon
+            if self.always == -1:
+                self.always = self.IsShown()
+            else:
+                self.always = -1
+                self.Show(not self.IsShown())
+            self.Reset()
+            self.icon.SetMyIcon()
+        else: # press key
+            self.Show(not self.IsShown())
 
     def OnOpenFile(self, filenames):
         if os.path.isfile(filenames[0]):
@@ -471,32 +497,6 @@ class MyFrame(wx.Frame):
         else:
             text = self.history.find(id - 1)
             self.SetQrCode(text=text)
-
-    def Show(self, show=True):
-        self.timeout = int(INI.getkey('timeout', '6'))
-        if self.always == self.IsShown():
-            return
-        bmp = self.bmp
-        tip = bmp.GetToolTipText()
-        bmp.SetToolTip('') # prevent remain shadow after hide frame.
-        super().Show(show)
-        bmp.SetToolTip(tip) # restore tip text.
-
-    def Hide(self, evt=None):
-        if evt or not self.enter: # call by `Alt+F4`
-            self.Show(False)
-
-    def Swap(self, evt=None):
-        if evt: # click icon
-            if self.always == -1:
-                self.always = self.IsShown()
-            else:
-                self.always = -1
-                self.Show(not self.IsShown())
-            self.Reset()
-            self.icon.SetMyIcon()
-        else: # press key
-            self.Show(not self.IsShown())
 
     def OnEnter(self, evt):
         self.enter = evt.Entering()
