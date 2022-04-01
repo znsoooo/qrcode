@@ -270,8 +270,10 @@ class Mover:
         self.p = parent
         self.dxy = (0, 0)
         widget.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
+        widget.Bind(wx.EVT_SIZE,      self.OnSize)
         parent.Bind(wx.EVT_LEFT_UP,   self.OnLeftUp)
         parent.Bind(wx.EVT_MOTION,    self.OnMouseMove)
+        self.OnLoad()  # before `SetQrCode`
 
     def OnLeftDown(self, evt):
         self.p.CaptureMouse()
@@ -284,13 +286,37 @@ class Mover:
     def OnLeftUp(self, evt):
         if self.p.HasCapture():
             self.p.ReleaseMouse()
-            INI.setkey('position', self.p.GetPositionCenter())
+            INI.setkey('position', self.GetCenter())
 
     def OnMouseMove(self, evt):
         if evt.Dragging() and evt.LeftIsDown():
             x, y = self.p.ClientToScreen(evt.GetPosition())
             fp = (x - self.dxy[0], y - self.dxy[1])
             self.p.Move(fp)
+
+    def OnSize(self, evt):
+        w, h = evt.GetSize()
+        xy = self.GetCenter()
+        self.p.SetSize((w + 2, h + 2)) # add 2 pixels for border.
+        self.SetCenter(xy)
+        evt.Skip() # prevent remain shadow
+
+    def OnLoad(self):
+        xy = eval(INI.getkey('position', 'None'))
+        if xy:
+            self.SetCenter(xy)
+        else:
+            self.p.Center()
+
+    def GetCenter(self):
+        x, y = self.p.GetPosition()
+        w, h = self.p.GetSize()
+        return x + w // 2, y + h // 2
+
+    def SetCenter(self, xy):
+        x, y = xy
+        w, h = self.p.GetSize()
+        self.p.SetPosition((x - w // 2, y - h // 2))
 
 
 class MyFileDropTarget(wx.FileDropTarget):
@@ -341,7 +367,6 @@ class MyFrame(wx.Frame):
         self.Binding(self.bmp)
 
         with catch:
-            self.LoadLocation()  # before `SetQrCode`
             self.SetQrCode(init=__help__) # clipboard maybe unavailable first time.
             self.timer.wait(self.timeout) # timer for run at first time.
 
@@ -395,7 +420,6 @@ class MyFrame(wx.Frame):
 
         self.bmp.SetBitmap(wx.Bitmap(img_wx))
         self.bmp.SetToolTip(header + text)
-        self.SetSizeCenter(self.bmp.GetSize())
 
     def Reset(self):
         if self.IsShown():
@@ -473,28 +497,6 @@ class MyFrame(wx.Frame):
             self.icon.SetMyIcon()
         else: # press key
             self.Show(not self.IsShown())
-
-    def LoadLocation(self):
-        xy = eval(INI.getkey('position', 'None'))
-        if xy:
-            self.SetPositionCenter(xy)
-        else:
-            self.Center()
-
-    def GetPositionCenter(self):
-        x, y = self.GetPosition()
-        w, h = self.GetSize()
-        return x + w // 2, y + h // 2
-
-    def SetPositionCenter(self, xy):
-        x, y = xy
-        w, h = self.GetSize()
-        self.SetPosition((x - w // 2, y - h // 2))
-
-    def SetSizeCenter(self, size):
-        xy = self.GetPositionCenter()
-        self.SetSize((size[0] + 2, size[1] + 2)) # add 2 pixels for border.
-        self.SetPositionCenter(xy)
 
     def OnEnter(self, evt):
         self.enter = evt.Entering()
