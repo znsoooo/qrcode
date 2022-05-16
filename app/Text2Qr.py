@@ -4,7 +4,6 @@ Hotkey: Ctrl-Alt-Q
 
 import wx
 import qrcode
-import pyperclip
 
 __help__  = 'https://github.com/znsoooo/qrcode'
 
@@ -26,7 +25,7 @@ class QrFrame(wx.Dialog):
 class MyFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, -1, 'Text')
-        self.text = wx.TextCtrl(self, -1, pyperclip.paste(), style=wx.TE_MULTILINE | wx.TE_NOHIDESEL)
+        self.text = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_NOHIDESEL)
         self.text.Bind(wx.EVT_SET_FOCUS, self.OnFocus)
         self.text.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         self.text.Bind(wx.EVT_TEXT, self.OnText)
@@ -35,9 +34,11 @@ class MyFrame(wx.Frame):
         self.Show()
 
     def OnFocus(self, evt):
-        s = pyperclip.paste()
-        if s:
-            self.text.SetValue(s)
+        do = wx.TextDataObject()
+        if wx.TheClipboard.Open():
+            if wx.TheClipboard.GetData(do):
+                self.text.SetValue(do.GetText())
+            wx.TheClipboard.Close()
         evt.Skip()
 
     def OnKeyDown(self, evt):
